@@ -55,7 +55,7 @@ def get_arguments():
     parser = argparse.ArgumentParser(description=__doc__, usage=
                                      "{0} -h"
                                      .format(sys.argv[0]))
-    parser.add_argument('-i', '-amplicon_file', dest='amplicon_file', type=isfile, required=True, 
+    parser.add_argument('-i', '-amplicon_file', dest='amplicon_file', type=isfile, required=True,
                         help="Amplicon is a compressed fasta file (.fasta.gz)")
     parser.add_argument('-s', '-minseqlen', dest='minseqlen', type=int, default = 400,
                         help="Minimum sequence length for dereplication (default 400)")
@@ -70,18 +70,69 @@ def get_arguments():
     return parser.parse_args()
 
 def read_fasta(amplicon_file, minseqlen):
-    pass
+    """Read fasta file
+    ---
+    Read a fasta.gz file and make a generator of sequences in the fasta.gz:\n
+    Arguments:
+    - amplicon_file (fasta.gz file): take a fasta.gz file in arguments of main.
+    - minseqlen (int): minimum lenght of sequence in fasta.gz file, get in arguments of main.\n
+    Return:
+    - sequences (generator): give a generator of sequences in the fasta.gz file.
+    """
+    # open the fasta.gz
+    with gzip.open(amplicon_file, 'rt') as fasta_gz:
+        seq = ""
+        # select lines in the fasta.gz
+        for line in fasta_gz:
+            # check if the line start with a ">"
+            if line[0] == ">":
+                # check if the sequence have the minimal lenght
+                if len(seq) >= minseqlen:
+                    # return the sequence
+                    yield seq
+                # reset the seq and restart the loop
+                seq = ""
+                continue
+            seq += line.strip() # eliminate the carriage return
+        # return the last line if have the minimal lenght 
+        if len(seq) >= minseqlen:
+            yield seq
 
 
 def dereplication_fulllength(amplicon_file, minseqlen, mincount):
-    pass
-
+    """De-replication of sequences
+    ---
+    Select sequencs with a minimal lenght and a minimal count and return a list ['sequences', 'count']\n
+    Arguments:
+    - amplicon_file (fasta.gz file): take a fasta.gz file in arguments of main.
+    - minseqlen (int): minimum lenght of sequence in fasta.gz file, get in arguments of main.\n
+    - mincount (int): minimum count of a sequence to take it.\n
+    Return:
+    - sequence and count (list): list with sequence (str) and his count (int)
+    if the sequence have the minimum lenght and count.
+    """
+    dict_occurences = {}
+    sequences = list(read_fasta(amplicon_file, minseqlen))
+    # get every sequences generate by read_fasta
+    for sequence in sequences:
+        # verify if the number of sequences is superior to the minimal
+        if sequences.count(sequence) > mincount:
+            # add the sequence in the dictionnary if absent
+            if sequence not in dict_occurences.keys():
+                dict_occurences[sequence] = 1
+            # count one more if the sequence is already in the dictionnary
+            else:
+                dict_occurences[sequence] += 1
+    # change the key(sequence) and the item(count of that sequence) in a list and make the generator
+    for key in sorted(dict_occurences, key = dict_occurences.get, reverse= True):
+        list_occ = [key, dict_occurences[key]]
+        yield list_occ
 
 def get_unique(ids):
     return {}.fromkeys(ids).keys()
 
 
-def common(lst1, lst2): 
+def common(lst1, lst2):
     return list(set(lst1) & set(lst2))
 
 
@@ -91,8 +142,8 @@ def get_chunks(sequence, chunk_size):
     if len_seq < chunk_size * 4:
         raise ValueError("Sequence length ({}) is too short to be splitted in 4"
                          " chunk of size {}".format(len_seq, chunk_size))
-    return [sequence[i:i+chunk_size] 
-              for i in range(0, len_seq, chunk_size) 
+    return [sequence[i:i+chunk_size]
+              for i in range(0, len_seq, chunk_size)
                 if i+chunk_size <= len_seq - 1]
 
 
@@ -133,6 +184,8 @@ def main():
     # Get arguments
     args = get_arguments()
     # Votre programme ici
+    read_fasta(args.amplicon_file, args.minseqlen)
+    dereplication_fulllength(args.amplicon_file, args.minseqlen, args.mincount)
 
 
 if __name__ == '__main__':
