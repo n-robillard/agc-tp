@@ -19,6 +19,7 @@ import os
 import gzip
 import statistics
 from collections import Counter
+from typing import Sequence
 # https://github.com/briney/nwalign3
 # ftp://ftp.ncbi.nih.gov/blast/matrices/
 import nwalign3 as nw
@@ -165,14 +166,55 @@ def chimera_removal(amplicon_file, minseqlen, mincount, chunk_size, kmer_size):
     pass
 
 def abundance_greedy_clustering(amplicon_file, minseqlen, mincount, chunk_size, kmer_size):
-    pass
+    """Selet OTU in fasta.gz file
+    ---
+    Get OTU based and the abundance of sequences (count of unique sequence) and their similarity (<97%).\n
+    Arguments:
+    - amplicon_file (fasta.gz file): take a fasta.gz file in arguments of main.
+    - minseqlen (int): minimum lenght of sequence in fasta.gz file, get in arguments of main.\n
+    - mincount (int): minimum count of a sequence to take it.
+    - chunck_size (int): size of chunck in arguments of main.
+    - kmer_size (int): size of k-mer in arguments of main.\n
+    Return:
+    - list_otu (list): list of more abundant OTU in the fasta.gz file.
+    """
+    otu_list = []
+    sequences = list(dereplication_fulllength(amplicon_file, minseqlen, mincount))
+    otu_list.append(sequences[0])
+    for sequence in sequences:
+        for otu in otu_list:
+            alignement = nw.global_align(sequence[0], otu[0], gap_open=-1, gap_extend=-1, matrix=os.path.abspath(os.path.join(os.path.dirname(__file__),"MATCH")))
+            identity = get_identity(alignement)
+            if identity < 97.00:
+                otu_list.append(sequence)
+    return otu_list
 
 def fill(text, width=80):
     """Split text with a line return to respect fasta format"""
     return os.linesep.join(text[i:i+width] for i in range(0, len(text), width))
 
 def write_OTU(OTU_list, output_file):
-    pass
+    """Write list OTU in fasta
+    ---
+    Give a fasta file like :\n
+    >OTU_1 occurrence:1000\n
+    ATGGTCA...
+    >OTU_2 occurrence:900\n
+    GTAACTA...
+    etc...\n
+    Arguments:
+    - OTU_list (list): list of OTU generate by the abundance_greedy_clustering function.
+    - output_file (int): name of the fasta file get in the main programm\n
+    Return:
+    - output_file.fna (fasta file): fasta with the OTU and their occurrences.
+    """
+    with open(f"{output_file}", "w") as fasta:
+        # extract number of contig and contig
+        for index,otu in enumerate(OTU_list):
+            # write a fasta file
+            fasta.write(">OTU_" + str(index+1) + " occurrence:" + str(otu[1]) +
+            "\n" + fill(otu[0]) + "\n")
+
 
 #==============================================================
 # Main program
@@ -184,8 +226,7 @@ def main():
     # Get arguments
     args = get_arguments()
     # Votre programme ici
-    read_fasta(args.amplicon_file, args.minseqlen)
-    dereplication_fulllength(args.amplicon_file, args.minseqlen, args.mincount)
+    abundance_greedy_clustering(args.amplicon_file, args.minseqlen, args.mincount, args.chunk_size, args.kmer_size)
 
 
 if __name__ == '__main__':
